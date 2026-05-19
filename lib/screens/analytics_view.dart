@@ -10,6 +10,7 @@ class SeismicColors {
   static const Color blueLight = Color(0xFF38BDF8);
   static const Color textMuted = Color(0xFF94A3B8);
   static const Color bgLight = Color(0xFFF8FAFC);
+  static const Color greenAlert = Color(0xFF22C55E);
 }
 
 class AnalyticsView extends StatefulWidget {
@@ -223,7 +224,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('SEISMIC.PRO', style: TextStyle(color: SeismicColors.navyDark, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+        title: const Text('SASIMOK GUARD', style: TextStyle(color: SeismicColors.navyDark, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
         centerTitle: true,
       ),
       body: RefreshIndicator(
@@ -241,7 +242,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     const SizedBox(height: 24),
 
                     // ── INSIGHTS (DSS) SECTION ──
-                    const Text('Executive DSS Insights', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: SeismicColors.navyDark)),
+                    const Text('Analisis Ancaman Bencana', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: SeismicColors.navyDark)),
                     const SizedBox(height: 12),
                     _buildDSSGrid(),
                     const SizedBox(height: 24),
@@ -251,7 +252,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     const SizedBox(height: 32),
 
                     // ── BAR CHART ──
-                    const Text('Seismic Event Frequency', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: SeismicColors.navyDark)),
+                    const Text('Tren Aktivitas Gempa', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: SeismicColors.navyDark)),
                     const SizedBox(height: 4),
                     Text('${_fmtLabel(_startDate)} – ${_fmtLabel(_endDate)}', style: const TextStyle(color: SeismicColors.textMuted, fontSize: 13)),
                     const SizedBox(height: 16),
@@ -259,7 +260,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     const SizedBox(height: 32),
 
                     // ── DONUT CHART ──
-                    const Text('Magnitude Distribution', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: SeismicColors.navyDark)),
+                    const Text('Sebaran Kekuatan Gempa', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: SeismicColors.navyDark)),
                     const SizedBox(height: 16),
                     _buildDonutChartContainer(),
                     const SizedBox(height: 30),
@@ -492,10 +493,10 @@ class _AnalyticsViewState extends State<AnalyticsView> {
               child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildLegendItem('Minor (< 4.0)', SeismicColors.navyDark, _distribution['Minor']!),
-              _buildLegendItem('Light (4.0 - 4.9)', SeismicColors.blueLight, _distribution['Light']!),
-              _buildLegendItem('Moderate (5.0 - 5.9)', SeismicColors.navyAccent, _distribution['Moderate']!),
-              _buildLegendItem('Major (≥ 6.0)', SeismicColors.redAlert, _distribution['Major']!),
+              _buildLegendItem('Minor (< 4.0)', SeismicColors.greenAlert, _distribution['Minor']!),
+              _buildLegendItem('Terasa (4.0 - 4.9)', SeismicColors.blueLight, _distribution['Light']!),
+              _buildLegendItem('Sedang (5.0 - 5.9)', SeismicColors.orangeAlert, _distribution['Moderate']!),
+              _buildLegendItem('Kuat (≥ 6.0)', SeismicColors.redAlert, _distribution['Major']!),
             ],
           )),
         ],
@@ -520,9 +521,9 @@ class _AnalyticsViewState extends State<AnalyticsView> {
 
   List<PieChartSectionData> _buildPieSections() {
     return [
-      PieChartSectionData(color: SeismicColors.navyDark, value: _distribution['Minor']!.toDouble(), radius: 18, showTitle: false),
+      PieChartSectionData(color: SeismicColors.greenAlert, value: _distribution['Minor']!.toDouble(), radius: 18, showTitle: false),
       PieChartSectionData(color: SeismicColors.blueLight, value: _distribution['Light']!.toDouble(), radius: 18, showTitle: false),
-      PieChartSectionData(color: SeismicColors.navyAccent, value: _distribution['Moderate']!.toDouble(), radius: 18, showTitle: false),
+      PieChartSectionData(color: SeismicColors.orangeAlert, value: _distribution['Moderate']!.toDouble(), radius: 18, showTitle: false),
       PieChartSectionData(color: SeismicColors.redAlert, value: _distribution['Major']!.toDouble(), radius: 18, showTitle: false),
     ];
   }

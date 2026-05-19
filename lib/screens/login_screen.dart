@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'home_screen.dart';
+import 'admin_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,10 +29,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (response.user != null && mounted) {
-        // Langsung lempar ke HomeScreen untuk dicek Role-nya
+        // Lempar ke Panel Admin
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (context) => const AdminScreen()),
         );
       }
     } on AuthException catch (e) {
@@ -77,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const Icon(Icons.public, size: 80, color: Colors.blueAccent),
               const SizedBox(height: 16),
               const Text(
-                'SeismoGuard',
+                'Sasimok Guard',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const Text(

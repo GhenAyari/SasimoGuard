@@ -10,6 +10,8 @@ import 'analytics_view.dart';
 import 'all_earthquakes_screen.dart';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math' as math;
+import 'login_screen.dart'; // Sesuaikan path ini dengan folder lu
 
 // --- THEME COLORS ---
 class SeismicColors {
@@ -178,7 +180,7 @@ class _PublicScreenState extends State<PublicScreen> {
       await _showNotification(
         id: notifId,
         title: 'ℹ️ Info: Gempa Terasa',
-        body: 'Gempa M $mag berjarak ${distanceKm.toStringAsFixed(0)} km di $wilayah.',
+        body: 'Gempa M $mag berjarak ${distanceKm.toStringAsFixed(0)} km dari anda di $wilayah.',
         isUrgent: false,
       );
     } else if (!isNear && isDangerous) {
@@ -193,7 +195,7 @@ class _PublicScreenState extends State<PublicScreen> {
       await _showNotification(
         id: notifId,
         title: 'Info Minor',
-        body: 'Gempa kecil M $mag jarak ${distanceKm.toStringAsFixed(0)} km di $wilayah.',
+        body: 'Gempa kecil M $mag jarak ${distanceKm.toStringAsFixed(0)} km dari anda di $wilayah.',
         isUrgent: false,
       );
     }
@@ -646,9 +648,18 @@ class _DashboardViewState extends State<DashboardView> {
             floating: true,
             backgroundColor: Colors.white,
             elevation: 0,
-            leading: const Icon(Icons.menu, color: SeismicColors.navyDark),
+           leading: IconButton( // <-- Ganti jadi IconButton
+              icon: const Icon(Icons.door_back_door_sharp, color: SeismicColors.navyDark),
+              onPressed: () {
+                // Arahkan ke halaman Login
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
+              },
+            ),
             title: const Text(
-              'SEISMIC.PRO',
+              'SASIMOK GUARD',
               style: TextStyle(
                 color: SeismicColors.navyDark,
                 fontWeight: FontWeight.w900,
@@ -702,7 +713,7 @@ class _DashboardViewState extends State<DashboardView> {
 
                 const SizedBox(height: 24),
                 const Text(
-                  'LATEST EARTHQUAKE (BMKG)',
+                  'INFO GEMPA TERBARU (BMKG)',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     color: SeismicColors.textMuted,
@@ -848,7 +859,7 @@ class _DashboardViewState extends State<DashboardView> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'RECENT ACTIVITY (GLOBAL FEED)',
+                      'AKTIVITAS GEMPA GLOBAL',
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: SeismicColors.textMuted,
@@ -1002,8 +1013,8 @@ class _DashboardViewState extends State<DashboardView> {
   }
 }
 
-// =============================================================================
-// LIVE MAP VIEW — SAMA PERSIS DENGAN VERSI LU, TIDAK DIUBAH
+/// =============================================================================
+// LIVE MAP VIEW (DENGAN MARKER POSKO + MODAL DETAIL)
 // =============================================================================
 class LiveMapView extends StatefulWidget {
   const LiveMapView({super.key});
@@ -1013,7 +1024,9 @@ class LiveMapView extends StatefulWidget {
 }
 
 class _LiveMapViewState extends State<LiveMapView> {
-  List<Marker> _markers = [];
+  List<Marker> _gempaMarkers = [];
+  List<Marker> _poskoMarkers = []; 
+  List<CircleMarker> _circles = [];
   bool _isLoading = true;
   bool _isRefreshing = false;
   Map<String, dynamic>? _selectedQuake;
@@ -1037,12 +1050,20 @@ class _LiveMapViewState extends State<LiveMapView> {
     });
 
     try {
-      final response =
+      // 1. Tarik Data Gempa
+      final gempaResponse =
           await Supabase.instance.client.from('gempa_live').select('*');
 
-      List<Marker> newMarkers = [];
+      // 2. Tarik Data Posko
+      final poskoResponse = 
+          await Supabase.instance.client.from('posko_evakuasi').select('*');
 
-      for (var item in response) {
+      List<Marker> newGempaMarkers = [];
+      List<Marker> newPoskoMarkers = [];
+      List<CircleMarker> newCircles = [];
+
+      // Proses Data Gempa
+      for (var item in gempaResponse) {
         if (item['koordinat'] != null) {
           List<String> coords = item['koordinat'].toString().split(',');
           if (coords.length == 2) {
@@ -1059,7 +1080,18 @@ class _LiveMapViewState extends State<LiveMapView> {
             final Map<String, dynamic> itemCopy =
                 Map<String, dynamic>.from(item);
 
-            newMarkers.add(
+            newCircles.add(
+              CircleMarker(
+                point: LatLng(lat, lng),
+                color: markerColor.withValues(alpha: 0.25), 
+                borderColor: markerColor, 
+                borderStrokeWidth: 2,
+                useRadiusInMeter: true, 
+                radius: math.pow(mag, 1.5) * 2500, 
+              ),
+            );
+
+            newGempaMarkers.add(
               Marker(
                 point: LatLng(lat, lng),
                 width: 40,
@@ -1089,8 +1121,62 @@ class _LiveMapViewState extends State<LiveMapView> {
         }
       }
 
+      // Proses Data Posko Evakuasi
+      for (var posko in poskoResponse) {
+        if (posko['koordinat'] != null) {
+          List<String> coords = posko['koordinat'].toString().split(',');
+          if (coords.length == 2) {
+            double lat = double.tryParse(coords[0]) ?? 0;
+            double lng = double.tryParse(coords[1]) ?? 0;
+            final poskoCopy = Map<String, dynamic>.from(posko);
+
+            newPoskoMarkers.add(
+              Marker(
+                point: LatLng(lat, lng),
+                width: 60,
+                height: 60,
+                child: GestureDetector(
+                  onTap: () => _showPoskoDetail(poskoCopy), 
+                  child: Column(
+                    children: [
+                      const Icon(Icons.health_and_safety,
+                          color: Colors.blue, size: 28), 
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            boxShadow: const [
+                              BoxShadow(
+                                  color: Colors.black26, blurRadius: 4)
+                            ]),
+                        child: Text(
+                          (posko['nama_posko'] ?? '').toString().length > 10
+                              ? (posko['nama_posko'] ?? '')
+                                      .toString()
+                                      .substring(0, 10) +
+                                  '...'
+                              : (posko['nama_posko'] ?? '').toString(),
+                          style: const TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              color: SeismicColors.navyDark),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+        }
+      }
+
       setState(() {
-        _markers = newMarkers;
+        _gempaMarkers = newGempaMarkers;
+        _poskoMarkers = newPoskoMarkers; 
+        _circles = newCircles; 
         _isLoading = false;
         _isRefreshing = false;
       });
@@ -1101,6 +1187,92 @@ class _LiveMapViewState extends State<LiveMapView> {
         _isRefreshing = false;
       });
     }
+  }
+
+  void _showPoskoDetail(Map<String, dynamic> posko) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                const Icon(Icons.health_and_safety, color: Colors.blue, size: 32),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    posko['nama_posko'] ?? 'Posko Evakuasi',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: SeismicColors.navyDark),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+            if (posko['keterangan'] != null &&
+                posko['keterangan'].toString().isNotEmpty) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_rounded, size: 18, color: SeismicColors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      posko['keterangan'],
+                      style: const TextStyle(color: SeismicColors.navyDark, fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              children: [
+                const Icon(Icons.my_location_rounded, size: 18, color: SeismicColors.textMuted),
+                const SizedBox(width: 8),
+                Text(posko['koordinat'] ?? '-', style: const TextStyle(color: SeismicColors.textMuted, fontSize: 13)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  backgroundColor: SeismicColors.bgLight,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text('Tutup', style: TextStyle(color: SeismicColors.navyDark, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -1118,11 +1290,12 @@ class _LiveMapViewState extends State<LiveMapView> {
             ),
             children: [
               TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.seismoguard.app',
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.sasimokguard.app',
               ),
-              MarkerLayer(markers: _markers),
+              CircleLayer(circles: _circles),
+              MarkerLayer(markers: _gempaMarkers), 
+              MarkerLayer(markers: _poskoMarkers), 
             ],
           ),
         ),
@@ -1132,10 +1305,9 @@ class _LiveMapViewState extends State<LiveMapView> {
           left: 20,
           right: 20,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
+              color: Colors.white.withOpacity(0.95),
               borderRadius: BorderRadius.circular(30),
               boxShadow: const [
                 BoxShadow(
@@ -1147,12 +1319,11 @@ class _LiveMapViewState extends State<LiveMapView> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.satellite_alt_rounded,
-                    color: SeismicColors.navyDark),
+                const Icon(Icons.satellite_alt_rounded, color: SeismicColors.navyDark),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Menampilkan ${_markers.length} Titik Gempa Aktif',
+                    '${_gempaMarkers.length} Titik Gempa • ${_poskoMarkers.length} Posko',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: SeismicColors.navyDark,
@@ -1166,9 +1337,7 @@ class _LiveMapViewState extends State<LiveMapView> {
                     duration: const Duration(milliseconds: 600),
                     child: Icon(
                       Icons.refresh_rounded,
-                      color: _isRefreshing
-                          ? SeismicColors.textMuted
-                          : SeismicColors.navyDark,
+                      color: _isRefreshing ? SeismicColors.textMuted : SeismicColors.navyDark,
                     ),
                   ),
                 ),
