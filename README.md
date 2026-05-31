@@ -1,13 +1,19 @@
-# 🌍 SeismoGuard — Seismic Activity Data Warehouse
+![poster](poster.png)
+# 🌍 SeismoGuard — End-to-End Seismic Data Warehouse & Early Warning System
 
-> **Data Warehouse berbasis Medallion Architecture untuk analitik kegempaan Indonesia**  
-> Mendukung Business Intelligence, Sistem Pendukung Keputusan (DSS) Mitigasi Bencana, dan Early Warning System berbasis data BMKG.
+> **Platform Data Warehouse dan Sistem Peringatan Dini Gempa Bumi berbasis Medallion Architecture**  
+> Mengintegrasikan data historis BMKG/Kaggle dengan pipeline real-time multi-sumber (BMKG, USGS, EMSC) untuk mendukung Business Intelligence, Sistem Pendukung Keputusan (DSS) Mitigasi Bencana, dan Early Warning System otomatis berbasis Indonesia.
 
 ---
 
 ## 📌 Deskripsi Proyek
 
-**SeismoGuard** adalah proyek Data Warehouse yang memproses data historis aktivitas gempa bumi di Indonesia melalui pipeline ETL (Extract, Transform, Load) berbasis Python dan PostgreSQL (Supabase). Proyek ini menerapkan **Medallion Architecture** (Bronze → Silver → Gold) yang menghasilkan **Star Schema** siap pakai untuk analitik dan visualisasi.
+**SeismoGuard** adalah proyek Data Warehouse modern yang memproses data aktivitas gempa bumi di Indonesia melalui dua jalur utama:
+
+1. **Batch Processing** — Pembersihan dan analisis data historis dari dataset Kaggle/BMKG menggunakan Python dan PostgreSQL
+2. **Real-Time Pipeline** — ETL otomatis setiap 30 detik dari tiga API seismologi global (BMKG, USGS, EMSC)
+
+Proyek ini menerapkan **Medallion Architecture** (Bronze → Silver → Gold) dan menghasilkan **Star Schema** siap pakai untuk analitik, visualisasi, serta pemicu notifikasi darurat berbasis lokasi pengguna.
 
 ### 🎯 Dirancang untuk:
 
@@ -15,8 +21,8 @@
 |---|---|
 | **Business Intelligence (BI)** | Visualisasi tren dan pola kegempaan nasional |
 | **DSS Mitigasi Bencana** | Rekomendasi prioritas wilayah rawan untuk alokasi sumber daya |
-| **Dashboard Analitik** | Monitoring frekuensi, magnitudo, dan distribusi gempa |
-| **Early Warning System** | Deteksi anomali berbasis data historis yang terstruktur |
+| **Early Warning System** | Notifikasi push otomatis via FCM berdasarkan jarak episentrum dan tingkat risiko |
+| **Dashboard Analitik** | Monitoring frekuensi, magnitudo, dan distribusi gempa real-time maupun historis |
 
 ---
 
@@ -24,20 +30,25 @@
 
 ```
 project-folder/
-├── katalog_gempa.csv                    # Dataset mentah dari Kaggle/BMKG
-├── katalog_gempa_downloadable.csv       # Dataset hasil transformasi awal (Python)
-├── PRAKTIKUM_AVD_Checkpoint_2.ipynb     # Notebook proses pembersihan data
-├── init_database.sql                    # Script pembuatan schema (Medallion)
-├── ddl_bronze_silver.sql                # Script ETL untuk layer Bronze & Silver
-├── ddl_gold_star_schema.sql             # Script SQL untuk Data Warehouse akhir (Gold)
-└── README.md                            # Dokumentasi proyek
+├── data/
+│   ├── katalog_gempa.csv                    # Dataset mentah dari Kaggle/BMKG
+│   └── katalog_gempa_downloadable.csv       # Dataset hasil transformasi awal (Python)
+├── data_cleaning/
+│   └── PRAKTIKUM_AVD_Checkpoint_2.ipynb     # Notebook proses pembersihan data historis
+├── scripts/
+│   ├── init_database.sql                    # Script pembuatan schema (Medallion)
+│   ├── ddl_bronze_silver.sql                # Script ETL untuk layer Bronze & Silver
+│   └── ddl_gold_star_schema.sql             # Script SQL untuk Data Warehouse akhir (Gold)
+├── firebase_service_account.json            # Kredensial FCM (tidak di-commit ke repo publik)
+└── README.md
 ```
 
 ---
 
-## 📁 Deskripsi File
+## 📁 Deskripsi Dataset & File
 
-### 1. `katalog_gempa.csv`
+### `katalog_gempa.csv` — Raw Dataset
+
 Dataset mentah berisi rekam jejak aktivitas gempa bumi di Indonesia.
 
 | Kolom | Deskripsi |
@@ -51,19 +62,20 @@ Dataset mentah berisi rekam jejak aktivitas gempa bumi di Indonesia.
 | `remark` | Keterangan wilayah asal |
 | `strike1`, `dip1`, `rake1`, dst. | Parameter mekanis (dominan kosong) |
 
-### 2. `katalog_gempa_downloadable.csv`
+### `katalog_gempa_downloadable.csv` — Transformed Dataset
+
 Dataset pasca-transformasi menggunakan Python Pandas. Perubahan utama:
 - ✅ Penghapusan kolom mekanis tidak relevan (`strike`, `dip`, `rake`)
-- ✅ Penambahan kolom **feature engineering**: `Keterangan` — klasifikasi status gempa berdasarkan ambang batas magnitudo (contoh: *"Gempa Sedang"*, *"Gempa Terasa Jelas"*)
+- ✅ Penambahan kolom feature engineering: `Keterangan` — klasifikasi status gempa berdasarkan ambang batas magnitudo (contoh: *"Gempa Sedang"*, *"Gempa Terasa Jelas"*)
 
-### 3. `PRAKTIKUM_AVD_Checkpoint_2.ipynb`
+### `PRAKTIKUM_AVD_Checkpoint_2.ipynb` — Data Cleaning Notebook
+
 Notebook Python yang menjalankan seluruh alur Data Cleaning:
 - Penanganan **missing values** (kolom >97% kosong dihapus)
 - Analisis **outliers** pada kedalaman dan magnitudo menggunakan metode IQR
 - Pembuatan **logika klasifikasi** status gempa untuk fitur DSS
 
-### 4. Script SQL (Supabase)
-Kumpulan script untuk membangun Data Warehouse di PostgreSQL dengan Medallion Architecture:
+### Script SQL (Supabase)
 
 | File | Fungsi |
 |---|---|
@@ -75,71 +87,70 @@ Kumpulan script untuk membangun Data Warehouse di PostgreSQL dengan Medallion Ar
 
 ## 🏗️ Arsitektur Data: Medallion Architecture
 
-SeismoGuard mengadopsi **Medallion Architecture** — pola desain data yang mengatur pemrosesan ke dalam tiga lapisan logis secara bertahap. Setiap lapisan meningkatkan kualitas data sebelum akhirnya dikonsumsi oleh aplikasi DSS dan dashboard analitik.
+SeismoGuard mengadopsi **Medallion Architecture** — pola desain data yang mengatur pemrosesan ke dalam lapisan logis secara bertahap. Setiap lapisan meningkatkan kualitas data sebelum dikonsumsi oleh aplikasi DSS dan dashboard analitik.
 
 ```
-📥 Sumber Data (CSV / BMKG)
+📥 Sumber Data
+   ├── CSV/Kaggle (Batch)
+   └── BMKG / USGS / EMSC API (Real-Time, setiap 30 detik)
           │
           ▼
-┌─────────────────────┐
-│   🥉 BRONZE LAYER   │  ← Raw Data (disimpan apa adanya, tipe TEXT)
-│  bronze.crm_gempa_raw│
-└─────────┬───────────┘
-          │  Type Casting + Deduplication + Validasi
+┌──────────────────────────┐
+│      🥉 BRONZE LAYER     │  ← Raw Data (TEXT, apa adanya)
+│   bronze.crm_gempa_raw   │
+└───────────┬──────────────┘
+            │  Type Casting + Deduplication + Validasi
+            ▼
+┌──────────────────────────┐
+│      🥈 SILVER LAYER     │  ← Cleaned & Validated (DATE, DECIMAL, INT)
+│    silver.gempa_clean    │
+└───────────┬──────────────┘
+            │  Ekstraksi DISTINCT + JOIN ke Star Schema
+            ▼
+┌──────────────────────────────────────────────────┐
+│                   🥇 GOLD LAYER                  │
+│                                                  │
+│  ┌──────────────┐      ┌─────────────────────┐  │
+│  │  dim_waktu   │◄─────│     fact_gempa       │  │
+│  └──────────────┘      └──────────┬──────────┘  │
+│                                   │              │
+│                         ┌─────────▼──────────┐  │
+│                         │     dim_lokasi      │  │
+│                         └────────────────────┘  │
+└──────────────────────────────────────────────────┘
+          │
           ▼
-┌─────────────────────┐
-│   🥈 SILVER LAYER   │  ← Cleaned & Validated (DATE, DECIMAL, INT)
-│  silver.gempa_clean  │
-└─────────┬───────────┘
-          │  Ekstraksi DISTINCT + JOIN ke Star Schema
-          ▼
-┌─────────────────────────────────────────┐
-│              🥇 GOLD LAYER              │
-│                                         │
-│  ┌───────────┐      ┌───────────────┐   │
-│  │ dim_waktu │◄─────│  fact_gempa   │   │
-│  └───────────┘      └──────┬────────┘   │
-│                             │            │
-│                    ┌────────▼──────┐    │
-│                    │  dim_lokasi   │    │
-│                    └───────────────┘   │
-└─────────────────────────────────────────┘
+┌──────────────────────────┐
+│   📡 STAGING LAYER       │  ← Real-Time Operational Data
+│   public.gempa_live      │  (Truncate-and-load setiap siklus)
+└───────────┬──────────────┘
+            │  Haversine Distance + Rule-Based Risk
+            ▼
+     🚨 Early Warning System (FCM Push Notification)
 ```
 
 ---
 
 ### 🥉 Bronze Layer — *Raw Data*
 
-**Apa itu?**  
-Lapisan pertama tempat data mendarat langsung dari sumber eksternal (CSV BMKG/Kaggle). Data disimpan **apa adanya** dengan tipe data `TEXT` tanpa modifikasi apapun.
-
-**Kenapa diterapkan?**  
-Berfungsi sebagai **Audit Trail**. Jika terdapat kesalahan logika di masa depan, kita selalu memiliki salinan data asli tanpa harus meminta ulang ke sumber. Prinsipnya: *"simpan dulu, proses belakangan."*
-
----
+Lapisan pertama tempat data mendarat langsung dari sumber eksternal. Data disimpan **apa adanya** dengan tipe `TEXT` tanpa modifikasi, berfungsi sebagai **Audit Trail** penuh. Prinsipnya: *"simpan dulu, proses belakangan."*
 
 ### 🥈 Silver Layer — *Cleaned & Validated*
 
-**Apa itu?**  
-Lapisan tengah di mana data dari Bronze dibersihkan, divalidasi, dan distandarisasi di dalam PostgreSQL.
-
-**Kenapa diterapkan?**  
-Untuk menjamin **Integritas Data**. Pada tahap ini dilakukan:
+Lapisan tengah tempat data dibersihkan dan distandarisasi di dalam PostgreSQL:
 - Penghapusan **data duplikat**
 - Penanganan **missing values**
 - **Type Casting**: konversi teks ke format `DATE`, `DECIMAL`, dan `INT`
 
-Data di Silver sudah *"setengah matang"* — dapat dipercaya tetapi belum dioptimalkan untuk query analitik.
-
----
+Data di Silver sudah dapat dipercaya namun belum dioptimalkan untuk query analitik.
 
 ### 🥇 Gold Layer — *Curated / Presentation*
 
-**Apa itu?**  
-Lapisan final yang sepenuhnya siap dikonsumsi oleh aplikasi SeismoGuard, dashboard BI, maupun sistem DSS.
+Lapisan final berbasis **Star Schema** (Tabel Fakta & Dimensi), sepenuhnya siap dikonsumsi oleh aplikasi, dashboard BI, maupun sistem DSS. Query dapat berjalan cepat karena database tidak perlu kalkulasi berat berulang kali.
 
-**Kenapa diterapkan?**  
-Untuk **Performa Analitik Maksimal**. Data disusun menggunakan **Star Schema** (Tabel Fakta & Dimensi), sehingga query dapat berjalan sangat cepat karena database tidak perlu melakukan kalkulasi berat berulang kali saat diakses.
+### 📡 Staging Layer — *Real-Time Operational*
+
+Lapisan operasional khusus data real-time. Tabel `public.gempa_live` diperbarui setiap 30 detik menggunakan metode *truncate-and-load* dan berperan sebagai **trigger** untuk algoritma Early Warning System.
 
 ---
 
@@ -147,13 +158,13 @@ Untuk **Performa Analitik Maksimal**. Data disusun menggunakan **Star Schema** (
 
 | Alasan | Penjelasan |
 |---|---|
-| **Standar Industri** | Pola ini digunakan di dunia kerja nyata (Data Engineering / Lakehouse) |
-| **Skalabilitas** | Penambahan sumber data baru cukup dimasukkan ke Bronze, tanpa merusak alur yang berjalan |
-| **Kualitas Keputusan** | Lapisan Silver memastikan tidak ada data "sampah" yang memicu peringatan palsu (*false alarm*) pada DSS |
+| **Standar Industri** | Pola ini digunakan luas di dunia Data Engineering / Lakehouse modern |
+| **Skalabilitas** | Sumber data baru cukup dimasukkan ke Bronze tanpa merusak alur yang berjalan |
+| **Kualitas Keputusan** | Silver memastikan tidak ada data "sampah" yang memicu *false alarm* pada DSS |
 
 ---
 
-## ⭐ Struktur Star Schema (Lapisan Gold)
+## ⭐ Struktur Star Schema (Gold Layer)
 
 ### `dim_lokasi` — Dimensi Lokasi
 
@@ -189,29 +200,44 @@ Untuk **Performa Analitik Maksimal**. Data disusun menggunakan **Star Schema** (
 
 ## ⚙️ Proses ETL
 
-### Extract → Bronze
-Data dari `katalog_gempa_downloadable.csv` diimpor ke `bronze.crm_gempa_raw` sebagai teks murni untuk menjaga jejak audit yang utuh.
+### Extract → Bronze (Batch & Real-Time)
+- **Batch**: Data dari `katalog_gempa_downloadable.csv` diimpor ke `bronze.crm_gempa_raw` sebagai teks murni.
+- **Real-Time**: Data ditarik otomatis dari API BMKG, USGS, dan EMSC setiap 30 detik, lalu dimuat ke `public.gempa_live`.
 
 ### Transform → Silver
-Pembersihan data lanjutan di dalam PostgreSQL:
 - Konversi format `"YYYY/MM/DD"` (teks) → tipe data `DATE`
 - Standarisasi format desimal untuk koordinat dan magnitudo
 - Penghapusan duplikat dan validasi nilai
 
 ### Load → Gold
-- Ekstraksi nilai unik (`DISTINCT`) dari Silver ke tabel dimensi (`dim_waktu`, `dim_lokasi`)
-- Operasi `JOIN` untuk membangun `fact_gempa` dengan relasi kunci (FK) yang utuh dan terstruktur
+- Ekstraksi nilai unik (`DISTINCT`) dari Silver ke tabel dimensi `dim_waktu` dan `dim_lokasi`
+- Operasi `JOIN` untuk membangun `fact_gempa` dengan relasi foreign key yang utuh
+
+### Early Warning System (Real-Time)
+- Menerapkan **formula Haversine** untuk menghitung jarak episentrum terhadap koordinat pengguna
+- Memicu notifikasi **Firebase Cloud Messaging (FCM) v1 API** berdasarkan klasifikasi tingkat bahaya
+- Dilengkapi **Anti-Spam Mechanism** menggunakan pelacakan state ID gempa untuk menghindari notifikasi duplikat
+
+---
+
+## 🔗 Integrasi Sumber Data
+
+| Sumber | Tipe | Keterangan |
+|---|---|---|
+| **Kaggle** | Batch/Historis | [Dataset Earthquakes in Indonesia](https://www.kaggle.com/datasets/kekavigi/earthquakes-in-indonesia) — data cleaning & analisis dasar |
+| **BMKG** | Real-Time | Gempa terkini dan gempa dirasakan di wilayah Indonesia |
+| **USGS** | Real-Time | Data GeoJSON aktivitas gempa global (1 jam terakhir) |
+| **EMSC** | Real-Time | Data seismik berskala internasional dari portal Eropa & Mediterania |
 
 ---
 
 ## 📊 Analisis yang Didukung
 
-Data warehouse SeismoGuard siap mendukung berbagai skenario analitik:
-
 - 🗺️ **Heatmap Kerawanan** — Identifikasi wilayah dengan frekuensi gempa tertinggi
 - 📈 **Tren Waktu** — Frekuensi kejadian per tahun/bulan
 - 📉 **Distribusi Magnitudo** — Proporsi kategori gempa (Sedang vs. Terasa Jelas)
 - 🚨 **Prioritas Mitigasi** — Rekomendasi penyaluran dana darurat berbasis data
+- 📡 **Monitoring Real-Time** — Status aktivitas seismik terkini dari tiga platform global
 
 ---
 
@@ -246,37 +272,60 @@ ORDER BY rata_rata_mag DESC;
 
 ---
 
+## 🔧 Environment Variables & Konfigurasi
+
+Pastikan variabel berikut sudah diatur sebelum menjalankan pipeline:
+
+| Variabel | Deskripsi | Contoh |
+|---|---|---|
+| `FIREBASE_PROJECT_ID` | ID proyek Google Firebase | `"sasimoks-fbe64"` |
+| `SERVICE_ACCOUNT_FILE` | Path file kredensial JSON Firebase | `"firebase_service_account.json"` |
+| `SUPABASE_URL` | URL endpoint API Supabase | `https://your-project.supabase.co` |
+| `SUPABASE_KEY` | Service Role Key Supabase | *JWT Token* |
+| `USER_LAT` | Latitude referensi lokasi pengguna | `-0.5022` (Samarinda) |
+| `USER_LNG` | Longitude referensi lokasi pengguna | `117.1536` (Samarinda) |
+
+---
+
 ## 🚀 Cara Menjalankan Proyek
 
-### 1. Pembersihan Awal (Opsional)
-Buka `PRAKTIKUM_AVD_Checkpoint_2.ipynb` di Google Colab untuk menjalankan proses data cleaning dan feature engineering dengan Python Pandas.
+### 1. Setup Database di Supabase
+Buat project baru di [Supabase](https://supabase.com) dan buka **SQL Editor**. Jalankan script DDL secara berurutan:
 
-### 2. Setup Database di Supabase
-Buat project baru di [Supabase](https://supabase.com) dan buka **SQL Editor** di dashboard.
-
-### 3. Jalankan Script Medallion (Berurutan)
 ```
-1. init_database.sql        → Buat schema bronze, silver, gold
+1. init_database.sql        → Buat schema bronze, silver, gold, public
 2. ddl_bronze_silver.sql    → Buat tabel dan ETL Bronze ke Silver
 3. ddl_gold_star_schema.sql → Buat Star Schema di Gold
 ```
 
-### 4. Import Data
-Gunakan fitur **Import Data** di Supabase untuk memuat `katalog_gempa_downloadable.csv` ke dalam tabel `bronze.crm_gempa_raw`.
+### 2. Pembersihan Data Historis (Batch)
+Buka dan jalankan `data_cleaning/PRAKTIKUM_AVD_Checkpoint_2.ipynb` (Google Colab atau Jupyter) untuk proses data cleaning dan feature engineering menggunakan Python Pandas.
 
-### 5. Populate Star Schema
-Jalankan query DML (`INSERT INTO ... SELECT`) untuk memindahkan dan mentransformasi data dari Bronze hingga ke Gold secara berurutan.
+> 📎 [Workspace 2: Data Cleaning & Historical Processing](https://colab.research.google.com/drive/1wXfwk2O_Tew6N_IU9XsbOTWoqLAqU_vt#scrollTo=0kE8HT3QATPW)
+
+### 3. Import Data ke Bronze
+Gunakan fitur **Import Data** di Supabase untuk memuat `katalog_gempa_downloadable.csv` ke tabel `bronze.crm_gempa_raw`.
+
+### 4. Populate Star Schema (Gold Layer)
+Jalankan query DML (`INSERT INTO ... SELECT`) secara berurutan untuk memindahkan dan mentransformasi data dari Bronze hingga ke Gold.
+
+### 5. Jalankan Real-Time Pipeline
+Pastikan `firebase_service_account.json` sudah ditempatkan di direktori kerja, sesuaikan environment variables, lalu jalankan notebook pipeline real-time.
+
+> 📎 [Workspace 1: Data Pipeline & EWS (Real-Time)](https://colab.research.google.com/drive/13Gaog9-bgI5pZ3_u7slzrf-T6isZp9xS?usp=sharing)
 
 ---
 
-## 🧰 Teknologi yang Digunakan
+## 🧰 Tech Stack
 
 | Teknologi | Kegunaan |
 |---|---|
-| **Python** (Pandas, NumPy) | Data Cleaning & Feature Engineering |
-| **Jupyter Notebook / Google Colab** | Eksplorasi dan dokumentasi proses ETL awal |
-| **PostgreSQL** (via Supabase) | Database utama Data Warehouse |
+| **Python** (Pandas, Requests, NumPy) | Data Cleaning, Feature Engineering & ETL |
+| **Jupyter Notebook / Google Colab** | Eksplorasi, eksekusi pipeline, dan dokumentasi proses |
+| **PostgreSQL** (via Supabase) | Database utama — Data Warehouse & Operational Store |
 | **SQL** | Implementasi Medallion Architecture & Star Schema |
+| **Firebase Cloud Messaging (FCM) v1)** | Notifikasi push darurat berbasis tingkat risiko |
+| **BMKG / USGS / EMSC API** | Sumber data seismik real-time multi-platform |
 
 ---
 
